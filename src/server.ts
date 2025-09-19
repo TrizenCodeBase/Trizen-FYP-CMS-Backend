@@ -63,6 +63,26 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('combined'));
 }
 
+// Root endpoint
+app.get('/', (req: any, res: any) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to TRIZEN CMS Backend API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    endpoints: {
+      health: '/health',
+      api: '/api/v1',
+      auth: '/api/v1/auth',
+      problems: '/api/v1/problems',
+      analytics: '/api/v1/analytics',
+      public: '/api/v1/public'
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req: any, res: any) => {
   res.status(200).json({
