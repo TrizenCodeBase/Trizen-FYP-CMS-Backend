@@ -10,6 +10,34 @@ import {
 
 const router = express.Router();
 
+// @route   GET /api/v1/public
+// @desc    Public API information
+// @access  Public
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'TRIZEN CMS Public API',
+    version: '1.0.0',
+    description: 'Public endpoints for accessing problem statements',
+    endpoints: {
+      problems: '/api/v1/public/problems',
+      featured: '/api/v1/public/problems/featured',
+      popular: '/api/v1/public/problems/popular',
+      search: '/api/v1/public/problems/search',
+      domain: '/api/v1/public/problems/domain/:domain',
+      problem: '/api/v1/public/problems/:id'
+    },
+    usage: {
+      getAllProblems: 'GET /api/v1/public/problems',
+      getFeaturedProblems: 'GET /api/v1/public/problems/featured',
+      getPopularProblems: 'GET /api/v1/public/problems/popular',
+      searchProblems: 'GET /api/v1/public/problems/search?q=search_term',
+      getProblemsByDomain: 'GET /api/v1/public/problems/domain/AI%20%26%20Machine%20Learning',
+      getProblemById: 'GET /api/v1/public/problems/AIM001'
+    }
+  });
+});
+
 // @route   GET /api/v1/public/problems
 // @desc    Get all active problem statements (for final-frontier-projects)
 // @access  Public
