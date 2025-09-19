@@ -219,10 +219,13 @@ docs/
 README.md
 
 # Docker
-Dockerfile
+# Keep Dockerfiles for deployment
+# Dockerfile
 .dockerignore
 docker-compose*.yml
 
 # Deployment
-captain-definition
-.captain-definition
+# Deployment files (keep captain-definition for CapRover deployment)
+!captain-definition
+!*/captain-definition
+
