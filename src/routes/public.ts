@@ -1,11 +1,12 @@
 import express from 'express';
-import { 
-  getProblems, 
+import {
+  getProblems,
   getProblemByCustomId,
   getFeaturedProblems,
   getProblemsByDomain,
   searchProblems,
-  getPopularProblems
+  getPopularProblems,
+  getProblemStats
 } from '../controllers/problemController';
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.get('/', (req, res) => {
       featured: '/api/v1/public/problems/featured',
       popular: '/api/v1/public/problems/popular',
       search: '/api/v1/public/problems/search',
+      stats: '/api/v1/public/problems/stats',
       domain: '/api/v1/public/problems/domain/:domain',
       problem: '/api/v1/public/problems/:id'
     },
@@ -32,6 +34,7 @@ router.get('/', (req, res) => {
       getFeaturedProblems: 'GET /api/v1/public/problems/featured',
       getPopularProblems: 'GET /api/v1/public/problems/popular',
       searchProblems: 'GET /api/v1/public/problems/search?q=search_term',
+      getProblemStats: 'GET /api/v1/public/problems/stats',
       getProblemsByDomain: 'GET /api/v1/public/problems/domain/AI%20%26%20Machine%20Learning',
       getProblemById: 'GET /api/v1/public/problems/AIM001'
     }
@@ -62,6 +65,11 @@ router.get('/problems/search', searchProblems);
 // @desc    Get problems by domain
 // @access  Public
 router.get('/problems/domain/:domain', getProblemsByDomain);
+
+// @route   GET /api/v1/public/problems/stats
+// @desc    Get problem statistics
+// @access  Public
+router.get('/problems/stats', getProblemStats);
 
 // @route   GET /api/v1/public/problems/:id
 // @desc    Get problem by custom ID (AIM001, etc.)

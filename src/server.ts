@@ -30,7 +30,12 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:8080'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || [
+    'http://localhost:3000', 
+    'http://localhost:8080',
+    'https://projects.trizenventures.com',
+    'https://fyrcmsfrontend.llp.trizenventures.com'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
