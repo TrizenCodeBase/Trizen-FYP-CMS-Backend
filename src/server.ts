@@ -34,7 +34,8 @@ app.use(cors({
     'http://localhost:3000', 
     'http://localhost:8080',
     'https://projects.trizenventures.com',
-    'https://fyrcmsfrontend.llp.trizenventures.com'
+    'https://fyrcmsfrontend.llp.trizenventures.com',
+    'https://fypcms.trizenventures.com'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
