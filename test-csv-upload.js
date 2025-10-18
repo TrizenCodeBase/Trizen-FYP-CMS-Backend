@@ -10,7 +10,7 @@ async function testCSVUpload() {
     // First, let's test the template download
     console.log('1. Testing template download...');
     try {
-      const templateResponse = await axios.get('http://localhost:5000/api/v1/problems/template', {
+      const templateResponse = await axios.get('https://trizenfypcmsbackend.llp.trizenventures.com/api/v1/problems/template', {
         headers: {
           'Authorization': 'Bearer YOUR_JWT_TOKEN_HERE' // You'll need to get a real token
         }
@@ -33,7 +33,7 @@ async function testCSVUpload() {
     formData.append('file', fs.createReadStream(csvPath));
 
     try {
-      const uploadResponse = await axios.post('http://localhost:5000/api/v1/problems/bulk-upload', formData, {
+      const uploadResponse = await axios.post('https://trizenfypcmsbackend.llp.trizenventures.com/api/v1/problems/bulk-upload', formData, {
         headers: {
           ...formData.getHeaders(),
           'Authorization': 'Bearer YOUR_JWT_TOKEN_HERE' // You'll need to get a real token

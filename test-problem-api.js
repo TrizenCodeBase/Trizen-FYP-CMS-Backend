@@ -1,7 +1,7 @@
 // Test script for Problem Statement API
 const axios = require('axios');
 
-const BASE_URL = 'http://localhost:5000/api/v1';
+const BASE_URL = 'https://trizenfypcmsbackend.llp.trizenventures.com/api/v1';
 
 // Test data
 const testProblem = {
