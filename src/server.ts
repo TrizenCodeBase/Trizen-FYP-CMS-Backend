@@ -35,11 +35,13 @@ app.use(cors({
     'http://localhost:8080',
     'https://projects.trizenventures.com',
     'https://fyrcmsfrontend.llp.trizenventures.com',
-    'https://fypcms.trizenventures.com'
+    'https://fypcms.trizenventures.com',
+    'https://academy.trizenventures.com',
+    'https://final-frontier-projects.vercel.app'
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Rate limiting
