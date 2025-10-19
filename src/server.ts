@@ -26,22 +26,46 @@ const PORT = process.env.PORT || 5000;
 connectDB();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
+}));
 
-// CORS configuration
+// CORS configuration - Enhanced for production
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : [
+      'http://localhost:3000', 
+      'http://localhost:8080',
+      'https://projects.trizenventures.com',
+      'https://fyrcmsfrontend.llp.trizenventures.com',
+      'https://fypcms.trizenventures.com',
+      'https://academy.trizenventures.com',
+      'https://final-frontier-projects.vercel.app',
+      'https://trizenfypcmsbackend.llp.trizenventures.com'
+    ];
+
+console.log('🔐 CORS Allowed Origins:', allowedOrigins);
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || [
-    'http://localhost:3000', 
-    'http://localhost:8080',
-    'https://projects.trizenventures.com',
-    'https://fyrcmsfrontend.llp.trizenventures.com',
-    'https://fypcms.trizenventures.com',
-    'https://academy.trizenventures.com',
-    'https://final-frontier-projects.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS blocked request from origin: ${origin}`);
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 600, // Cache preflight requests for 10 minutes
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 // Rate limiting
