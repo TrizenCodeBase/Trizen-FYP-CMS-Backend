@@ -31,31 +31,35 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
-// CORS configuration - Enhanced for production
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : [
-      'http://localhost:3000', 
-      'http://localhost:8080',
-      'https://projects.trizenventures.com',
-      'https://fyrcmsfrontend.llp.trizenventures.com',
-      'https://fypcms.trizenventures.com',
-      'https://academy.trizenventures.com',
-      'https://final-frontier-projects.vercel.app',
-      'https://trizenfypcmsbackend.llp.trizenventures.com'
-    ];
+// CORS configuration - HARDCODED for production (ignores env vars)
+const allowedOrigins = [
+  'http://localhost:3000', 
+  'http://localhost:8080',
+  'https://projects.trizenventures.com',
+  'https://fyrcmsfrontend.llp.trizenventures.com',
+  'https://fypcms.trizenventures.com',
+  'https://academy.trizenventures.com',
+  'https://final-frontier-projects.vercel.app',
+  'https://trizenfypcmsbackend.llp.trizenventures.com'
+];
 
-console.log('🔐 CORS Allowed Origins:', allowedOrigins);
+console.log('🔐 CORS Allowed Origins (HARDCODED):', allowedOrigins);
 
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('✅ CORS: Allowing request with no origin');
+      return callback(null, true);
+    }
     
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    // Check if origin is in our hardcoded list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`✅ CORS: Allowing request from origin: ${origin}`);
       callback(null, true);
     } else {
-      console.warn(`⚠️  CORS blocked request from origin: ${origin}`);
+      console.warn(`❌ CORS: BLOCKING request from origin: ${origin}`);
+      console.warn(`❌ CORS: Allowed origins are:`, allowedOrigins);
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     }
   },
@@ -67,6 +71,17 @@ app.use(cors({
   preflightContinue: false,
   optionsSuccessStatus: 204
 }));
+
+// CORS debugging middleware
+app.use((req: any, res: any, next: any) => {
+  if (req.method === 'OPTIONS') {
+    console.log(`🔍 CORS Preflight: ${req.method} ${req.path} from origin: ${req.headers.origin || 'no-origin'}`);
+  }
+  if (req.headers.origin) {
+    console.log(`🌐 Request from origin: ${req.headers.origin} to ${req.method} ${req.path}`);
+  }
+  next();
+});
 
 // Rate limiting
 const limiter = rateLimit({
@@ -122,6 +137,17 @@ app.get('/health', (req: any, res: any) => {
     message: 'TRIZEN CMS Backend is running!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// CORS test endpoint
+app.get('/cors-test', (req: any, res: any) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'CORS is working!',
+    origin: req.headers.origin || 'no-origin',
+    allowedOrigins: allowedOrigins,
+    timestamp: new Date().toISOString()
   });
 });
 
