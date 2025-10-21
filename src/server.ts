@@ -15,6 +15,7 @@ import userRoutes from './routes/users';
 import problemRoutes from './routes/problems';
 import analyticsRoutes from './routes/analytics';
 import publicRoutes from './routes/public';
+import leadRoutes from './routes/leadRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -35,6 +36,7 @@ app.use(helmet({
 const allowedOrigins = [
   'http://localhost:3000', 
   'http://localhost:8080',
+  'http://localhost:8084',  // Academy frontend local development
   'https://projects.trizenventures.com',
   'https://fyrcmsfrontend.llp.trizenventures.com',
   'https://fypcms.trizenventures.com',
@@ -157,6 +159,7 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/problems', problemRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/public', publicRoutes);
+app.use('/api/v1/leads', leadRoutes);
 
 // API documentation endpoint
 app.get('/api/v1', (req: any, res: any) => {
@@ -168,7 +171,8 @@ app.get('/api/v1', (req: any, res: any) => {
       users: '/api/v1/users',
       problems: '/api/v1/problems',
       analytics: '/api/v1/analytics',
-      public: '/api/v1/public'
+      public: '/api/v1/public',
+      leads: '/api/v1/leads'
     },
     documentation: 'https://github.com/trizen/cms-backend'
   });

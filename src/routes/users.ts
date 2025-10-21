@@ -1,5 +1,5 @@
 import express from 'express';
-import { getUsers, getUser, updateUser, deleteUser } from '../controllers/userController';
+import { getUsers, getUser, updateUser, deleteUser, getUserStats } from '../controllers/userController';
 import { protect, authorize } from '../middleware/auth';
 
 const router = express.Router();
@@ -23,5 +23,10 @@ router.put('/:id', protect, updateUser);
 // @desc    Delete user
 // @access  Private/Admin
 router.delete('/:id', protect, authorize('admin'), deleteUser);
+
+// @route   GET /api/v1/users/stats
+// @desc    Get user statistics
+// @access  Private/Admin
+router.get('/stats', protect, authorize('admin'), getUserStats);
 
 export default router;

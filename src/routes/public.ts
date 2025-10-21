@@ -6,7 +6,7 @@ import {
   getProblemsByDomain,
   searchProblems,
   getPopularProblems,
-  getProblemStats
+  getPublicProblemStats
 } from '../controllers/problemController';
 
 const router = express.Router();
@@ -69,7 +69,7 @@ router.get('/problems/domain/:domain', getProblemsByDomain);
 // @route   GET /api/v1/public/problems/stats
 // @desc    Get problem statistics
 // @access  Public
-router.get('/problems/stats', getProblemStats);
+router.get('/problems/stats', getPublicProblemStats);
 
 // @route   GET /api/v1/public/problems/:id
 // @desc    Get problem by custom ID (AIM001, etc.)

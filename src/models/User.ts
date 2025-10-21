@@ -5,6 +5,9 @@ export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
+  phone: string;
+  course: string;
+  college?: string;
   password: string;
   role: 'admin' | 'faculty' | 'student';
   avatar?: string;
@@ -31,6 +34,21 @@ const UserSchema: Schema = new Schema({
       /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
       'Please add a valid email'
     ]
+  },
+  phone: {
+    type: String,
+    required: [true, 'Please add a phone number'],
+    match: [/^[6-9]\d{9}$/, 'Please add a valid 10-digit mobile number']
+  },
+  course: {
+    type: String,
+    required: [true, 'Please add your course'],
+    trim: true
+  },
+  college: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'College name cannot be more than 100 characters']
   },
   password: {
     type: String,

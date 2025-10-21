@@ -1,5 +1,5 @@
 import express from 'express';
-import { getDashboardStats, getProblemStats, getUserStats } from '../controllers/analyticsController';
+import { getDashboardStats, getProblemStats, getUserStats, trackEvent } from '../controllers/analyticsController';
 import { protect, authorize } from '../middleware/auth';
 
 const router = express.Router();
@@ -18,5 +18,10 @@ router.get('/problems', protect, getProblemStats);
 // @desc    Get user statistics
 // @access  Private/Admin
 router.get('/users', protect, authorize('admin', 'faculty'), getUserStats);
+
+// @route   POST /api/v1/analytics/track
+// @desc    Track user analytics events
+// @access  Public
+router.post('/track', trackEvent);
 
 export default router;

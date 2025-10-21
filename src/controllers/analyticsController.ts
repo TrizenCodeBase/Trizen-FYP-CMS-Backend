@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ProblemStatement } from '../models/Problem';
 import { User } from '../models/User';
 import { createError } from '../middleware/errorHandler';
+import mongoose from 'mongoose';
 
 // @desc    Get dashboard statistics
 // @route   GET /api/v1/analytics/dashboard
@@ -191,5 +192,44 @@ export const getUserStats = async (req: Request, res: Response, next: NextFuncti
     });
   } catch (error) {
     next(error);
+  }
+};
+
+// @desc    Track user analytics events
+// @route   POST /api/v1/analytics/track
+// @access  Public
+export const trackEvent = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { action, category, label, value, userId, timestamp, page, userAgent } = req.body;
+
+    // Create analytics event document
+    const analyticsEvent = {
+      action,
+      category,
+      label,
+      value,
+      userId: userId ? new mongoose.Types.ObjectId(userId) : null,
+      timestamp: timestamp ? new Date(timestamp) : new Date(),
+      page,
+      userAgent,
+      ip: req.ip,
+      createdAt: new Date()
+    };
+
+    // Store in database (you can create an Analytics model if needed)
+    // For now, we'll just log it and return success
+    console.log('📊 Analytics Event:', analyticsEvent);
+
+    res.status(200).json({
+      success: true,
+      message: 'Event tracked successfully',
+      data: analyticsEvent
+    });
+  } catch (error) {
+    console.error('Error tracking analytics event:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to track event'
+    });
   }
 };

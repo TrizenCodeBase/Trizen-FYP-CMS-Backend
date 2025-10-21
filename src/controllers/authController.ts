@@ -29,7 +29,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const { name, email, password, role = 'student' } = req.body;
+    const { name, email, phone, course, college, password, role = 'student' } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -48,6 +48,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
         _id: new mongoose.Types.ObjectId(),
         name,
         email,
+        phone,
+        course,
+        college,
         role,
         avatar: null,
         isActive: true
@@ -77,6 +80,9 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     const user = await User.create({
       name,
       email,
+      phone,
+      course,
+      college,
       password,
       role
     });

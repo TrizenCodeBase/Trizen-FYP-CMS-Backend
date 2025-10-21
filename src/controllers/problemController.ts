@@ -406,7 +406,51 @@ export const getPopularProblems = async (req: Request, res: Response, next: Next
   }
 };
 
-// @desc    Get problem statistics
+// @desc    Get problem statistics (public version)
+// @route   GET /api/v1/public/problems/stats
+// @access  Public
+export const getPublicProblemStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const stats = await ProblemStatement.aggregate([
+      {
+        $match: { status: 'Active' } // Only count active problems for public stats
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          featured: { $sum: { $cond: ['$featured', 1, 0] } },
+          totalViews: { $sum: '$viewCount' }
+        }
+      }
+    ]);
+
+    const domainStats = await ProblemStatement.aggregate([
+      { $match: { status: 'Active' } },
+      { $group: { _id: '$domain', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    const difficultyStats = await ProblemStatement.aggregate([
+      { $match: { status: 'Active' } },
+      { $group: { _id: '$difficulty', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        overview: stats[0] || { total: 0, featured: 0, totalViews: 0 },
+        domainDistribution: domainStats,
+        difficultyDistribution: difficultyStats
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get problem statistics (admin version)
 // @route   GET /api/v1/problems/stats
 // @access  Private/Admin
 export const getProblemStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

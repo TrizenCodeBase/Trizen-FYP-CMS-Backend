@@ -8,12 +8,54 @@ import { AuthRequest } from '../middleware/auth';
 // @access  Private/Admin/Faculty
 export const getUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const users = await User.find({}).select('-password');
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const search = req.query.search as string;
+    const role = req.query.role as string;
+    const status = req.query.status as string;
+
+    // Build query
+    let query: any = {};
+    
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (role && role !== 'all') {
+      query.role = role;
+    }
+    
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        query.isActive = true;
+      } else if (status === 'inactive') {
+        query.isActive = false;
+      }
+    }
+
+    // Get total count
+    const total = await User.countDocuments(query);
+    
+    // Get users with pagination
+    const users = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
 
     res.status(200).json({
       success: true,
-      count: users.length,
-      data: users
+      data: {
+        users,
+        pagination: {
+          total,
+          pages: Math.ceil(total / limit),
+          current: page
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -106,6 +148,59 @@ export const deleteUser = async (req: Request, res: Response, next: NextFunction
     res.status(200).json({
       success: true,
       message: 'User deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get user statistics
+// @route   GET /api/v1/users/stats
+// @access  Private/Admin
+export const getUserStats = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    // Get total users
+    const totalUsers = await User.countDocuments();
+    
+    // Get active users
+    const activeUsers = await User.countDocuments({ isActive: true });
+    
+    // Get users by role
+    const students = await User.countDocuments({ role: 'student' });
+    const faculty = await User.countDocuments({ role: 'faculty' });
+    const admins = await User.countDocuments({ role: 'admin' });
+    
+    // Get recent users (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentUsers = await User.countDocuments({ 
+      createdAt: { $gte: sevenDaysAgo } 
+    });
+    
+    // Get users by status
+    const byStatus = await User.aggregate([
+      {
+        $group: {
+          _id: '$isActive',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total: totalUsers,
+        active: activeUsers,
+        students,
+        faculty,
+        admins,
+        recent: recentUsers,
+        byStatus: byStatus.map(item => ({
+          _id: item._id ? 'active' : 'inactive',
+          count: item.count
+        }))
+      }
     });
   } catch (error) {
     next(error);
