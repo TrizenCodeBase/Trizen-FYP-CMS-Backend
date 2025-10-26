@@ -16,11 +16,34 @@ export const createLead = async (req: Request, res: Response) => {
 
     // Check if lead already exists with this email
     const existingLead = await Lead.findOne({ email });
+    
     if (existingLead) {
-      return res.status(409).json({
-        success: false,
-        message: 'Lead with this email already exists',
-        data: existingLead
+      // Update existing lead with new submission data and increment submission count
+      existingLead.name = name;
+      existingLead.phone = phone;
+      existingLead.college = college;
+      existingLead.source = source;
+      existingLead.submissionCount = (existingLead.submissionCount || 1) + 1;
+      existingLead.lastSubmittedAt = new Date();
+      existingLead.status = 'resubmitted'; // Mark as resubmitted to track interest
+      
+      await existingLead.save();
+      
+      console.log(`🔄 Lead resubmitted: ${name} (${email}) - Submission #${existingLead.submissionCount}`);
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Lead updated successfully (existing email)',
+        data: {
+          id: existingLead._id,
+          name: existingLead.name,
+          email: existingLead.email,
+          college: existingLead.college,
+          status: existingLead.status,
+          submissionCount: existingLead.submissionCount,
+          createdAt: existingLead.createdAt,
+          lastSubmittedAt: existingLead.lastSubmittedAt
+        }
       });
     }
 
@@ -31,7 +54,9 @@ export const createLead = async (req: Request, res: Response) => {
       phone,
       college,
       source,
-      status: 'new'
+      status: 'new',
+      submissionCount: 1,
+      lastSubmittedAt: new Date()
     });
 
     await lead.save();
@@ -51,12 +76,27 @@ export const createLead = async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating lead:', error);
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors: { [key: string]: string } = {};
+      Object.values(error.errors).forEach((err: any) => {
+        validationErrors[err.path] = err.message;
+      });
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
     return res.status(500).json({
       success: false,
       message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error : undefined
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };

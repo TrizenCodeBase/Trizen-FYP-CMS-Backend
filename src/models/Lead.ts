@@ -6,8 +6,10 @@ export interface ILead extends Document {
   phone: string;
   college: string;
   source: string;
-  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
+  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost' | 'resubmitted';
   notes?: string;
+  submissionCount?: number;
+  lastSubmittedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,7 +32,8 @@ const LeadSchema = new Schema<ILead>({
     type: String,
     required: true,
     trim: true,
-    maxlength: 20
+    match: [/^[6-9]\d{9}$/, 'Please enter a valid 10-digit mobile number'],
+    maxlength: 10
   },
   college: {
     type: String,
@@ -46,11 +49,20 @@ const LeadSchema = new Schema<ILead>({
   status: {
     type: String,
     default: 'new',
-    enum: ['new', 'contacted', 'qualified', 'converted', 'lost']
+    enum: ['new', 'contacted', 'qualified', 'converted', 'lost', 'resubmitted']
   },
   notes: {
     type: String,
     maxlength: 500
+  },
+  submissionCount: {
+    type: Number,
+    default: 1,
+    min: 1
+  },
+  lastSubmittedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true
