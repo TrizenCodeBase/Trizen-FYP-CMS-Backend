@@ -1,5 +1,9 @@
 import { Request, Response } from 'express';
 import Lead, { ILead } from '../models/Lead';
+import { getDomainByTitle, DOMAINS, getAllDomains, getDomainBySlug } from '../config/domains';
+import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs';
 
 // Create a new lead
 export const createLead = async (req: Request, res: Response) => {
@@ -266,6 +270,300 @@ export const getLeadStats = async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+};
+
+// Generate secure token for PDF access
+function generatePDFToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Create lead from project funnel
+export const createProjectFunnelLead = async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  console.log('\n=== 📝 PROJECT FUNNEL LEAD SUBMISSION START ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('Request Body:', JSON.stringify(req.body, null, 2));
+  console.log('IP Address:', req.ip || req.headers['x-forwarded-for'] || 'unknown');
+  console.log('User Agent:', req.headers['user-agent'] || 'unknown');
+  
+  try {
+    const { name, phone, college, domain, source = 'bulk_email_funnel' } = req.body;
+    
+    console.log('\n[1/6] Validating input fields...');
+    // Validate required fields
+    if (!name || !phone || !college || !domain) {
+      console.log('❌ Validation failed: Missing required fields');
+      console.log('  - Name:', name ? '✓' : '✗');
+      console.log('  - Phone:', phone ? '✓' : '✗');
+      console.log('  - College:', college ? '✓' : '✗');
+      console.log('  - Domain:', domain ? '✓' : '✗');
+      return res.status(400).json({
+        success: false,
+        error: 'Name, phone, college, and domain are required'
+      });
+    }
+    console.log('✅ All required fields present');
+    
+    console.log('\n[2/6] Validating domain...');
+    // Validate domain
+    const domainConfig = getDomainByTitle(domain);
+    if (!domainConfig) {
+      console.log('❌ Invalid domain:', domain);
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid domain'
+      });
+    }
+    console.log('✅ Domain valid:', domain);
+    
+    console.log('\n[3/6] Generating PDF token...');
+    // Generate PDF token
+    const pdfToken = generatePDFToken();
+    const pdfTokenExpiresAt = new Date();
+    pdfTokenExpiresAt.setDate(pdfTokenExpiresAt.getDate() + 7); // 7 days expiry
+    console.log('✅ PDF token generated (expires in 7 days)');
+    
+    // Create temporary email if not provided
+    const email = `${phone}@temp.trizenventures.com`;
+    
+    console.log('\n[4/6] Creating lead in database...');
+    // Create lead
+    const lead: ILead = new Lead({
+      name,
+      email,
+      phone,
+      college,
+      domain,
+      source,
+      status: 'new',
+      pdfToken,
+      pdfTokenExpiresAt,
+      ipAddress: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+      userAgent: req.headers['user-agent'] || 'unknown',
+      submissionCount: 1,
+      lastSubmittedAt: new Date()
+    });
+    
+    await lead.save();
+    console.log('✅ Lead saved to database');
+    console.log('  - Lead ID:', lead._id);
+    console.log('  - Name:', lead.name);
+    console.log('  - Phone:', lead.phone);
+    console.log('  - College:', lead.college);
+    console.log('  - Domain:', lead.domain);
+    
+    console.log('\n[5/6] Generating links...');
+    // Generate PDF link
+    const frontendUrl = process.env.FRONTEND_URL || 'https://academy.projects.trizenventures.com';
+    const leadId = lead._id ? String(lead._id) : '';
+    const pdfLink = `${frontendUrl}/download/${leadId}?token=${pdfToken}`;
+    
+    // WhatsApp contact link (deep link to open WhatsApp chat)
+    const whatsappContactNumber = process.env.WHATSAPP_CONTACT_NUMBER || '918247422730';
+    const whatsappLink = `https://wa.me/${whatsappContactNumber}`;
+    
+    console.log('✅ Links generated:');
+    console.log('  - PDF Link:', pdfLink);
+    console.log('  - WhatsApp Link:', whatsappLink);
+    
+    console.log('\n[6/6] Saving PDF link to lead...');
+    // Save PDF link to lead
+    lead.pdfLink = pdfLink;
+    await lead.save();
+    console.log('✅ PDF link saved to lead');
+    
+    const duration = Date.now() - startTime;
+    console.log('\n=== ✅ PROJECT FUNNEL LEAD SUBMISSION SUCCESS ===');
+    console.log('Total time:', duration + 'ms');
+    console.log('Response:', {
+      success: true,
+      leadId: lead._id,
+      name: lead.name,
+      domain: lead.domain,
+      whatsappLink
+    });
+    console.log('================================================\n');
+    
+    return res.json({
+      success: true,
+      lead: {
+        id: lead._id,
+        name: lead.name,
+        domain: lead.domain,
+        pdfLink: lead.pdfLink
+      },
+      whatsappLink: whatsappLink
+    });
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error('\n=== ❌ PROJECT FUNNEL LEAD SUBMISSION ERROR ===');
+    console.error('Error after:', duration + 'ms');
+    console.error('Error type:', error.name || 'Unknown');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('===============================================\n');
+    
+    // Handle Mongoose validation errors
+    if (error.name === 'ValidationError') {
+      const validationErrors: { [key: string]: string } = {};
+      Object.values(error.errors).forEach((err: any) => {
+        validationErrors[err.path] = err.message;
+      });
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Get all domains
+export const getDomains = async (req: Request, res: Response) => {
+  try {
+    const domains = getAllDomains().map(({ title, config }) => ({
+      title,
+      slug: config.slug,
+      description: config.description
+    }));
+    
+    return res.json({ success: true, domains });
+  } catch (error: any) {
+    console.error('Error fetching domains:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Get domain by slug
+export const getDomainBySlugController = async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const domainConfig = getDomainBySlug(slug);
+    
+    if (!domainConfig) {
+      return res.status(404).json({
+        success: false,
+        error: 'Domain not found'
+      });
+    }
+    
+    // Find the title for this domain
+    const domainEntry = Object.entries(DOMAINS).find(([_, config]) => config.slug === slug);
+    const title = domainEntry ? domainEntry[0] : '';
+    
+    return res.json({
+      success: true,
+      domain: {
+        title,
+        slug: domainConfig.slug,
+        description: domainConfig.description
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching domain by slug:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
+    });
+  }
+};
+
+// Download PDF
+export const downloadPDF = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { leadId } = req.params;
+    const { token } = req.query;
+    
+    if (!token || typeof token !== 'string') {
+      res.status(400).json({
+        success: false,
+        error: 'Token is required'
+      });
+      return;
+    }
+    
+    // Find lead
+    const lead = await Lead.findById(leadId);
+    if (!lead) {
+      res.status(404).json({
+        success: false,
+        error: 'Lead not found'
+      });
+      return;
+    }
+    
+    // Verify token
+    if (!lead.pdfToken || lead.pdfToken !== token) {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid token'
+      });
+      return;
+    }
+    
+    if (!lead.pdfTokenExpiresAt || lead.pdfTokenExpiresAt < new Date()) {
+      res.status(401).json({
+        success: false,
+        error: 'Token has expired'
+      });
+      return;
+    }
+    
+    // Get domain config
+    if (!lead.domain) {
+      res.status(400).json({
+        success: false,
+        error: 'Lead domain not found'
+      });
+      return;
+    }
+    
+    const domainConfig = getDomainByTitle(lead.domain);
+    if (!domainConfig) {
+      res.status(404).json({
+        success: false,
+        error: 'Domain config not found'
+      });
+      return;
+    }
+    
+    // Read PDF file
+    const pdfPath = path.join(__dirname, '../../public', domainConfig.pdfPath);
+    
+    if (!fs.existsSync(pdfPath)) {
+      console.error(`PDF file not found at: ${pdfPath}`);
+      res.status(404).json({
+        success: false,
+        error: 'PDF file not found'
+      });
+      return;
+    }
+    
+    // Mark as downloaded
+    lead.pdfDownloaded = true;
+    lead.pdfDownloadedAt = new Date();
+    await lead.save();
+    
+    // Send PDF
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${domainConfig.slug}-projects.pdf"`);
+    res.sendFile(pdfPath);
+  } catch (error: any) {
+    console.error('Error downloading PDF:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error'
     });
   }
 };

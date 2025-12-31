@@ -36,6 +36,7 @@ app.use(helmet({
 const allowedOrigins = [
   'http://localhost:3000', 
   'http://localhost:8080',
+  'http://localhost:8081',  // WBroadcast frontend local development
   'http://localhost:8084',  // Academy frontend local development
   'https://projects.trizenventures.com',
   'https://fyrcmsfrontend.llp.trizenventures.com',

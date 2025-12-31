@@ -10,6 +10,19 @@ export interface ILead extends Document {
   notes?: string;
   submissionCount?: number;
   lastSubmittedAt?: Date;
+  // Project funnel fields
+  domain?: string;
+  pdfToken?: string;
+  pdfTokenExpiresAt?: Date;
+  pdfDownloaded?: boolean;
+  pdfDownloadedAt?: Date;
+  whatsappSent?: boolean;
+  whatsappSentAt?: Date;
+  whatsappMessageId?: string;
+  pdfLink?: string;
+  campaignId?: string;
+  ipAddress?: string;
+  userAgent?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,7 +57,7 @@ const LeadSchema = new Schema<ILead>({
   source: {
     type: String,
     default: 'website_popup',
-    enum: ['website_popup', 'contact_form', 'referral', 'social_media', 'other']
+    enum: ['website_popup', 'contact_form', 'referral', 'social_media', 'bulk_email_funnel', 'other']
   },
   status: {
     type: String,
@@ -63,6 +76,48 @@ const LeadSchema = new Schema<ILead>({
   lastSubmittedAt: {
     type: Date,
     default: Date.now
+  },
+  // Project funnel fields
+  domain: {
+    type: String,
+    trim: true
+  },
+  pdfToken: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  pdfTokenExpiresAt: {
+    type: Date
+  },
+  pdfDownloaded: {
+    type: Boolean,
+    default: false
+  },
+  pdfDownloadedAt: {
+    type: Date
+  },
+  whatsappSent: {
+    type: Boolean,
+    default: false
+  },
+  whatsappSentAt: {
+    type: Date
+  },
+  whatsappMessageId: {
+    type: String
+  },
+  pdfLink: {
+    type: String
+  },
+  campaignId: {
+    type: String
+  },
+  ipAddress: {
+    type: String
+  },
+  userAgent: {
+    type: String
   }
 }, {
   timestamps: true
@@ -72,5 +127,9 @@ const LeadSchema = new Schema<ILead>({
 LeadSchema.index({ email: 1 });
 LeadSchema.index({ status: 1 });
 LeadSchema.index({ createdAt: -1 });
+LeadSchema.index({ domain: 1 });
+LeadSchema.index({ pdfToken: 1 });
+LeadSchema.index({ whatsappSent: 1 });
+LeadSchema.index({ pdfDownloaded: 1 });
 
 export default mongoose.model<ILead>('Lead', LeadSchema);
