@@ -132,5 +132,7 @@ LeadSchema.index({ domain: 1 });
 LeadSchema.index({ pdfToken: 1 });
 LeadSchema.index({ whatsappSent: 1 });
 LeadSchema.index({ pdfDownloaded: 1 });
+// Compound unique index to prevent duplicate leads with same phone and source
+LeadSchema.index({ phone: 1, source: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model<ILead>('Lead', LeadSchema);

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import Lead, { ILead } from '../models/Lead';
 import { getDomainByTitle, DOMAINS, getAllDomains, getDomainBySlug } from '../config/domains';
 import crypto from 'crypto';
@@ -6,81 +7,84 @@ import path from 'path';
 import fs from 'fs';
 
 // Create a new lead
-export const createLead = async (req: Request, res: Response) => {
+export const createLead = async (req: Request, res: Response): Promise<void> => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
   try {
     const { name, email, phone, college, source = 'website_popup' } = req.body;
 
     // Validate required fields
     if (!name || !email || !phone || !college) {
-      return res.status(400).json({
+      await session.abortTransaction();
+      res.status(400).json({
         success: false,
         message: 'All fields are required'
       });
+      return;
     }
 
-    // Check if lead already exists with this email
-    const existingLead = await Lead.findOne({ email });
-    
-    if (existingLead) {
-      // Update existing lead with new submission data and increment submission count
-      existingLead.name = name;
-      existingLead.phone = phone;
-      existingLead.college = college;
-      existingLead.source = source;
-      existingLead.submissionCount = (existingLead.submissionCount || 1) + 1;
-      existingLead.lastSubmittedAt = new Date();
-      existingLead.status = 'resubmitted'; // Mark as resubmitted to track interest
-      
-      await existingLead.save();
-      
-      console.log(`🔄 Lead resubmitted: ${name} (${email}) - Submission #${existingLead.submissionCount}`);
-      
-      return res.status(200).json({
-        success: true,
-        message: 'Lead updated successfully (existing email)',
-        data: {
-          id: existingLead._id,
-          name: existingLead.name,
-          email: existingLead.email,
-          college: existingLead.college,
-          status: existingLead.status,
-          submissionCount: existingLead.submissionCount,
-          createdAt: existingLead.createdAt,
-          lastSubmittedAt: existingLead.lastSubmittedAt
+    // Use findOneAndUpdate for atomic upsert (prevents race conditions)
+    const lead = await Lead.findOneAndUpdate(
+      { email },
+      {
+        $setOnInsert: {
+          name,
+          email,
+          phone,
+          college,
+          source,
+          status: 'new',
+          submissionCount: 1,
+          lastSubmittedAt: new Date()
+        },
+        $set: {
+          name,
+          phone,
+          college,
+          source,
+          lastSubmittedAt: new Date()
+        },
+        $inc: {
+          submissionCount: 1
         }
-      });
-    }
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        session
+      }
+    );
 
-    // Create new lead
-    const lead = new Lead({
-      name,
-      email,
-      phone,
-      college,
-      source,
-      status: 'new',
-      submissionCount: 1,
-      lastSubmittedAt: new Date()
-    });
+    // Check if this was a new lead or update
+    const isNew = lead.submissionCount === 1;
 
-    await lead.save();
+    await session.commitTransaction();
 
-    console.log(`✅ New lead captured: ${name} (${email}) from ${college}`);
+    console.log(isNew 
+      ? `✅ New lead captured: ${name} (${email}) from ${college}`
+      : `🔄 Lead resubmitted: ${name} (${email}) - Submission #${lead.submissionCount}`
+    );
 
-    return res.status(201).json({
+    res.status(isNew ? 201 : 200).json({
       success: true,
-      message: 'Lead captured successfully',
+      message: isNew ? 'Lead captured successfully' : 'Lead updated successfully (existing email)',
       data: {
         id: lead._id,
         name: lead.name,
         email: lead.email,
         college: lead.college,
-        status: lead.status,
-        createdAt: lead.createdAt
+        status: isNew ? 'new' : 'resubmitted',
+        submissionCount: lead.submissionCount,
+        createdAt: lead.createdAt,
+        lastSubmittedAt: lead.lastSubmittedAt
       }
     });
+    return;
 
   } catch (error: any) {
+    await session.abortTransaction();
     console.error('Error creating lead:', error);
     
     // Handle Mongoose validation errors
@@ -90,18 +94,60 @@ export const createLead = async (req: Request, res: Response) => {
         validationErrors[err.path] = err.message;
       });
       
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: 'Validation failed',
         errors: validationErrors
       });
+      return;
+    }
+
+    // Handle duplicate key error (race condition)
+    if (error.code === 11000) {
+      // Retry with findOne
+      try {
+        const { name, email, phone, college, source = 'website_popup' } = req.body;
+        const existingLead = await Lead.findOne({ email });
+        
+        if (existingLead) {
+          existingLead.name = name;
+          existingLead.phone = phone;
+          existingLead.college = college;
+          existingLead.source = source;
+          existingLead.submissionCount = (existingLead.submissionCount || 1) + 1;
+          existingLead.lastSubmittedAt = new Date();
+          existingLead.status = 'resubmitted';
+          await existingLead.save();
+          
+          res.status(200).json({
+            success: true,
+            message: 'Lead updated successfully (existing email)',
+            data: {
+              id: existingLead._id,
+              name: existingLead.name,
+              email: existingLead.email,
+              college: existingLead.college,
+              status: existingLead.status,
+              submissionCount: existingLead.submissionCount,
+              createdAt: existingLead.createdAt,
+              lastSubmittedAt: existingLead.lastSubmittedAt
+            }
+          });
+          return;
+        }
+      } catch (retryError) {
+        console.error('Retry failed:', retryError);
+      }
     }
     
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: 'Internal server error',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+    return;
+  } finally {
+    await session.endSession();
   }
 };
 
@@ -328,13 +374,17 @@ function generatePDFToken(): string {
 }
 
 // Create lead from project funnel
-export const createProjectFunnelLead = async (req: Request, res: Response) => {
+export const createProjectFunnelLead = async (req: Request, res: Response): Promise<void> => {
   const startTime = Date.now();
   console.log('\n=== 📝 PROJECT FUNNEL LEAD SUBMISSION START ===');
   console.log('Timestamp:', new Date().toISOString());
   console.log('Request Body:', JSON.stringify(req.body, null, 2));
   console.log('IP Address:', req.ip || req.headers['x-forwarded-for'] || 'unknown');
   console.log('User Agent:', req.headers['user-agent'] || 'unknown');
+  
+  // Start a MongoDB session for transaction
+  const session = await mongoose.startSession();
+  session.startTransaction();
   
   try {
     const { name, phone, college, domain, source = 'bulk_email_funnel' } = req.body;
@@ -347,10 +397,12 @@ export const createProjectFunnelLead = async (req: Request, res: Response) => {
       console.log('  - Phone:', phone ? '✓' : '✗');
       console.log('  - College:', college ? '✓' : '✗');
       console.log('  - Domain:', domain ? '✓' : '✗');
-      return res.status(400).json({
+      await session.abortTransaction();
+      res.status(400).json({
         success: false,
         error: 'Name, phone, college, and domain are required'
       });
+      return;
     }
     console.log('✅ All required fields present');
     
@@ -359,10 +411,12 @@ export const createProjectFunnelLead = async (req: Request, res: Response) => {
     const domainConfig = getDomainByTitle(domain);
     if (!domainConfig) {
       console.log('❌ Invalid domain:', domain);
-      return res.status(400).json({
+      await session.abortTransaction();
+      res.status(400).json({
         success: false,
         error: 'Invalid domain'
       });
+      return;
     }
     console.log('✅ Domain valid:', domain);
     
@@ -376,51 +430,84 @@ export const createProjectFunnelLead = async (req: Request, res: Response) => {
     // Create temporary email if not provided
     const email = `${phone}@temp.trizenventures.com`;
     
-    console.log('\n[4/6] Creating lead in database...');
-    // Create lead
-    const lead: ILead = new Lead({
-      name,
-      email,
-      phone,
-      college,
-      domain,
-      source,
-      status: 'new',
-      pdfToken,
-      pdfTokenExpiresAt,
-      ipAddress: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
-      userAgent: req.headers['user-agent'] || 'unknown',
-      submissionCount: 1,
-      lastSubmittedAt: new Date()
-    });
+    console.log('\n[4/6] Creating/updating lead in database (atomic operation)...');
     
-    await lead.save();
-    console.log('✅ Lead saved to database');
+    // Use findOneAndUpdate with upsert for atomic operation (prevents race conditions)
+    const lead = await Lead.findOneAndUpdate(
+      { phone, source: 'bulk_email_funnel' }, // Check for existing lead with same phone
+      {
+        $setOnInsert: { // Only set these on insert (new document)
+          name,
+          email,
+          phone,
+          college,
+          domain,
+          source,
+          status: 'new',
+          pdfToken,
+          pdfTokenExpiresAt,
+          ipAddress: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown',
+          submissionCount: 1,
+          lastSubmittedAt: new Date()
+        },
+        $set: { // Always update these
+          name,
+          college,
+          domain,
+          lastSubmittedAt: new Date(),
+          ipAddress: req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown',
+          userAgent: req.headers['user-agent'] || 'unknown'
+        },
+        $inc: { // Increment submission count
+          submissionCount: 1
+        }
+      },
+      {
+        upsert: true, // Create if doesn't exist
+        new: true, // Return updated document
+        runValidators: true,
+        session // Use transaction session
+      }
+    );
+    
+    console.log('✅ Lead saved/updated in database');
     console.log('  - Lead ID:', lead._id);
     console.log('  - Name:', lead.name);
     console.log('  - Phone:', lead.phone);
     console.log('  - College:', lead.college);
     console.log('  - Domain:', lead.domain);
+    console.log('  - Submission Count:', lead.submissionCount);
+    console.log('  - Has PDF Token:', !!lead.pdfToken);
     
-    console.log('\n[5/6] Generating links...');
-    // Generate PDF link
+    console.log('\n[5/6] Generating PDF link...');
+    // Generate PDF link with lead ID (use existing token if available, otherwise use new one)
     const frontendUrl = process.env.FRONTEND_URL || 'https://academy.projects.trizenventures.com';
-    const leadId = lead._id ? String(lead._id) : '';
-    const pdfLink = `${frontendUrl}/download/${leadId}?token=${pdfToken}`;
+    const leadId = String(lead._id);
+    const tokenToUse = lead.pdfToken || pdfToken; // Use existing token if available
+    const pdfLink = `${frontendUrl}/download/${leadId}?token=${tokenToUse}`;
+    
+    // Update PDF link and token if needed (only if not already set)
+    if (!lead.pdfLink || !lead.pdfToken) {
+      lead.pdfLink = pdfLink;
+      if (!lead.pdfToken) {
+        lead.pdfToken = pdfToken;
+        lead.pdfTokenExpiresAt = pdfTokenExpiresAt;
+      }
+      await lead.save({ session });
+      console.log('✅ PDF link and token saved to lead');
+    } else {
+      console.log('✅ PDF link already exists, using existing token');
+    }
     
     // WhatsApp contact link (deep link to open WhatsApp chat)
     const whatsappContactNumber = process.env.WHATSAPP_CONTACT_NUMBER || '918247422730';
     const whatsappLink = `https://wa.me/${whatsappContactNumber}`;
     
-    console.log('✅ Links generated:');
-    console.log('  - PDF Link:', pdfLink);
-    console.log('  - WhatsApp Link:', whatsappLink);
-    
-    console.log('\n[6/6] Saving PDF link to lead...');
-    // Save PDF link to lead
-    lead.pdfLink = pdfLink;
-    await lead.save();
-    console.log('✅ PDF link saved to lead');
+    console.log('\n[6/6] Committing transaction...');
+    // Commit transaction
+    await session.commitTransaction();
+    console.log('✅ Transaction committed');
     
     const duration = Date.now() - startTime;
     console.log('\n=== ✅ PROJECT FUNNEL LEAD SUBMISSION SUCCESS ===');
@@ -434,7 +521,7 @@ export const createProjectFunnelLead = async (req: Request, res: Response) => {
     });
     console.log('================================================\n');
     
-    return res.json({
+    res.json({
       success: true,
       lead: {
         id: lead._id,
@@ -444,14 +531,66 @@ export const createProjectFunnelLead = async (req: Request, res: Response) => {
       },
       whatsappLink: whatsappLink
     });
+    return;
   } catch (error: any) {
+    // Abort transaction on error
+    await session.abortTransaction();
+    
     const duration = Date.now() - startTime;
     console.error('\n=== ❌ PROJECT FUNNEL LEAD SUBMISSION ERROR ===');
     console.error('Error after:', duration + 'ms');
     console.error('Error type:', error.name || 'Unknown');
+    console.error('Error code:', error.code || 'N/A');
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
     console.error('===============================================\n');
+    
+    // Handle duplicate key error (race condition caught)
+    if (error.code === 11000) {
+      console.log('🔄 Duplicate key error detected, retrying with findOne...');
+      try {
+        const { name, phone, college, domain, source = 'bulk_email_funnel' } = req.body;
+        const existingLead = await Lead.findOne({ phone, source: 'bulk_email_funnel' });
+        
+        if (existingLead) {
+          // Update existing lead
+          existingLead.name = name;
+          existingLead.college = college;
+          existingLead.domain = domain;
+          existingLead.submissionCount = (existingLead.submissionCount || 1) + 1;
+          existingLead.lastSubmittedAt = new Date();
+          
+          // Generate PDF link if not exists
+          if (!existingLead.pdfLink) {
+            const frontendUrl = process.env.FRONTEND_URL || 'https://academy.projects.trizenventures.com';
+            const leadId = String(existingLead._id);
+            const pdfToken = existingLead.pdfToken || generatePDFToken();
+            existingLead.pdfLink = `${frontendUrl}/download/${leadId}?token=${pdfToken}`;
+          }
+          
+          await existingLead.save();
+          
+          const whatsappContactNumber = process.env.WHATSAPP_CONTACT_NUMBER || '918247422730';
+          const whatsappLink = `https://wa.me/${whatsappContactNumber}`;
+          
+          console.log('✅ Retry successful - existing lead updated');
+          
+          res.json({
+            success: true,
+            lead: {
+              id: existingLead._id,
+              name: existingLead.name,
+              domain: existingLead.domain,
+              pdfLink: existingLead.pdfLink
+            },
+            whatsappLink: whatsappLink
+          });
+          return;
+        }
+      } catch (retryError: any) {
+        console.error('❌ Retry failed:', retryError);
+      }
+    }
     
     // Handle Mongoose validation errors
     if (error.name === 'ValidationError') {
@@ -460,17 +599,22 @@ export const createProjectFunnelLead = async (req: Request, res: Response) => {
         validationErrors[err.path] = err.message;
       });
       
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Validation failed',
         errors: validationErrors
       });
+      return;
     }
     
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       error: error.message || 'Internal server error'
     });
+    return;
+  } finally {
+    // Always end session
+    await session.endSession();
   }
 };
 
