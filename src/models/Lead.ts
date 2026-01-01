@@ -39,7 +39,8 @@ const LeadSchema = new Schema<ILead>({
     required: true,
     trim: true,
     lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    // More lenient regex to allow longer domain names (supports temp emails like phone@temp.trizenventures.com)
+    match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email']
   },
   phone: {
     type: String,

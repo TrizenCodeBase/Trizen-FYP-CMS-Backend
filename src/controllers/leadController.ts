@@ -105,15 +105,17 @@ export const createLead = async (req: Request, res: Response) => {
   }
 };
 
-// Get all leads (admin only)
+// Get all leads (public access)
 export const getAllLeads = async (req: Request, res: Response) => {
   try {
-    const { page = 1, limit = 10, status, search } = req.query;
+    const { page = 1, limit = 10, status, search, domain, source } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     // Build filter object
     const filter: any = {};
     if (status) filter.status = status;
+    if (domain) filter.domain = domain;
+    if (source) filter.source = source;
     if (search) {
       filter.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -267,6 +269,52 @@ export const getLeadStats = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error fetching lead stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
+// Get today's lead count (public - for social proof)
+export const getTodayLeadCount = async (req: Request, res: Response) => {
+  try {
+    // Get start of today in UTC
+    const startOfToday = new Date();
+    startOfToday.setUTCHours(0, 0, 0, 0);
+    
+    // Get end of today in UTC
+    const endOfToday = new Date();
+    endOfToday.setUTCHours(23, 59, 59, 999);
+    
+    // Count leads created today with source 'bulk_email_funnel'
+    const todayCount = await Lead.countDocuments({
+      source: 'bulk_email_funnel',
+      createdAt: {
+        $gte: startOfToday,
+        $lte: endOfToday
+      }
+    });
+    
+    // Also get this week's count for additional social proof
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+    const weekCount = await Lead.countDocuments({
+      source: 'bulk_email_funnel',
+      createdAt: {
+        $gte: startOfWeek
+      }
+    });
+    
+    return res.json({
+      success: true,
+      data: {
+        today: todayCount,
+        thisWeek: weekCount
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching today lead count:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'

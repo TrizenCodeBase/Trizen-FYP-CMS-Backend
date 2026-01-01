@@ -9,7 +9,8 @@ import {
   createProjectFunnelLead,
   getDomains,
   getDomainBySlugController,
-  downloadPDF
+  downloadPDF,
+  getTodayLeadCount
 } from '../controllers/leadController';
 import { protect } from '../middleware/auth';
 
@@ -20,10 +21,11 @@ router.post('/project-funnel', createProjectFunnelLead); // Must be before /:lea
 router.get('/domains', getDomains); // Must be before /:slug
 router.get('/domains/:slug', getDomainBySlugController);
 router.post('/', createLead); // Lead capture from popup
+router.get('/stats/today', getTodayLeadCount); // Public route for today's count (must be before /stats)
 
-// Protected routes (admin only) - Specific routes first
-router.get('/stats', protect, getLeadStats); // Must be before /:id
-router.get('/', protect, getAllLeads);
+// Public routes for viewing leads
+router.get('/', getAllLeads); // Public access to view leads
+router.get('/stats', protect, getLeadStats); // Must be before /:id (still protected)
 
 // Parameterized routes - MUST come last to avoid catching specific routes
 router.get('/:leadId/pdf', downloadPDF); // Download PDF (public with token)
