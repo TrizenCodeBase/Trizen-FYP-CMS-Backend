@@ -22,8 +22,8 @@ router.post('/register', [
     .withMessage('Password must be at least 6 characters long'),
   body('role')
     .optional()
-    .isIn(['admin', 'faculty', 'student'])
-    .withMessage('Role must be admin, faculty, or student')
+    .isIn(['faculty', 'student'])
+    .withMessage('Role must be faculty or student (admin is seeded from env)')
 ], register);
 
 // @route   POST /api/v1/auth/create-test-user

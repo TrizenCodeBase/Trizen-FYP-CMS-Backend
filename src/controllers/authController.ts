@@ -29,7 +29,10 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const { name, email, phone, course, college, password, role = 'student' } = req.body;
+    const { name, email, phone, course, college, password, role: requestedRole = 'student' } = req.body;
+
+    // Public registration cannot self-assign admin — use ADMIN_EMAIL seed / privileged create
+    const role = requestedRole === 'admin' ? 'student' : (requestedRole || 'student');
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });

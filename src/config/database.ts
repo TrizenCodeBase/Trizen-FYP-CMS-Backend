@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { seedAdmin } from '../utils/seedAdmin';
 
 const connectDB = async (): Promise<void> => {
   try {
@@ -9,6 +10,9 @@ const connectDB = async (): Promise<void> => {
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+
+    // Ensure default admin role account exists
+    await seedAdmin();
     
     // Handle connection events
     mongoose.connection.on('error', (err) => {
